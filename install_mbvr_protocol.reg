@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; mbvr:// Custom Protocol Handler for Zoom Launcher
+; 
+; IMPORTANT: Edit the path below to point to your actual mbvr_launcher.exe location
+; Example: "C:\\Users\\YourName\\mbvr_launcher.exe" or "D:\\Tools\\mbvr_launcher.exe"
+; Use double backslashes (\\) in the path.
+
+[HKEY_CURRENT_USER\Software\Classes\mbvr]
+@="URL:mbvr Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\mbvr\shell\open\command]
+@="\"C:\\path\\to\\mbvr_launcher.exe\" \"%1\""
