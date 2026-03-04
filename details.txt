@@ -1,0 +1,6 @@
+workdrive url: https://workdrive.zoho.com/folder/7wtvx07a315911c624537a5df727215bd5a71
+
+pip install pyinstaller
+pyinstaller --noconsole --onefile --name mbvr_launcher launcher.py
+
+mbvr://https://workdrive.zoho.com/folder/7wtvx07a315911c624537a5df727215bd5a71
