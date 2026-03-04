@@ -1,6 +1,6 @@
 Windows Registry Editor Version 5.00
 
-; mbvr:// Custom Protocol Handler for Zoho WorkDrive Launcher
+; mbvr:// Custom Protocol Handler - opens local files with default app
 ; 
 ; IMPORTANT: Edit the path below to point to your actual mbvr_launcher.exe location
 ; Example: "C:\\Users\\YourName\\mbvr_launcher.exe" or "D:\\Tools\\mbvr_launcher.exe"

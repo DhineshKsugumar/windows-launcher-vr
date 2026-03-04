@@ -1,6 +1,6 @@
-# mbvr:// Zoho WorkDrive Launcher for Windows
+# mbvr:// File Launcher for Windows
 
-A Windows custom URL protocol launcher that opens **Zoho WorkDrive True Sync** desktop app from `mbvr://` links. Designed for use with Zoho CRM custom buttons via `openUrl("mbvr://<workdrive-link>")`.
+A Windows custom URL protocol launcher that opens **local files** with their default application using `Start-Process`. Designed for use with Zoho CRM custom buttons via `openUrl("mbvr://<local-file-path>")`.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ A Windows custom URL protocol launcher that opens **Zoho WorkDrive True Sync** d
    dist\mbvr_launcher.exe --install
    ```
 
-3. **Test**: Click a link like `mbvr://https://workdrive.zoho.com/folder/abc123` — Zoho WorkDrive True Sync should open with that folder.
+3. **Test**: Click a link like `mbvr://C:/Users/Name/Documents/file.pdf` — the file opens in its default app.
 
 ---
 
@@ -24,7 +24,6 @@ A Windows custom URL protocol launcher that opens **Zoho WorkDrive True Sync** d
 ### Prerequisites
 - Windows 10/11
 - Python 3.8+
-- Zoho WorkDrive True Sync installed
 
 ### Build Command
 ```bash
@@ -54,30 +53,24 @@ mbvr_launcher.exe --install
 
 ---
 
-## Accepted Link Formats
+## Accepted Link Format
 
 | Format | Example |
 |--------|---------|
-| WorkDrive folder | `mbvr://https://workdrive.zoho.com/folder/<folder_id>` |
-| Team folder | `mbvr://https://workdrive.zoho.com/home/teams/<team_id>/privatespace/folders/<folder_id>` |
-| Private space | `mbvr://https://workdrive.zoho.com/teams/<team_id>/privatespace/folders/<folder_id>` |
+| Local file path | `mbvr://C:/Users/Name/Documents/file.pdf` |
+| With spaces | `mbvr://C:/Users/Name/My%20Documents/report.docx` |
+| Folder | `mbvr://C:/Users/Name/Desktop/MyFolder` |
 
-Any `https://workdrive.zoho.com/...` URL is accepted.
+The path after `mbvr://` is URL-decoded and passed to `Start-Process`, which opens it with the default application for that file type (or Explorer for folders).
 
 ---
 
-## ZohoWorkDriveTS.exe Search Locations
+## How It Works
 
-The launcher looks for **ZohoWorkDriveTS.exe** (Zoho WorkDrive True Sync) in this order:
-
-1. **Registry** – Windows Uninstall entries for "Zoho WorkDrive TrueSync"
-2. `C:\Program Files\Zoho\ZohoWorkDriveTS\bin\ZohoWorkDriveTS.exe` *(verified)*
-3. `C:\Program Files (x86)\Zoho\ZohoWorkDriveTS\bin\ZohoWorkDriveTS.exe`
-4. `%LOCALAPPDATA%\Zoho WorkDrive TrueSync\ZohoWorkDriveTS.exe`
-5. `%APPDATA%\Zoho WorkDrive TrueSync\ZohoWorkDriveTS.exe`
-6. Additional fallback paths
-
-If not found, errors are logged to `%TEMP%\mbvr_launcher.log`.
+1. Windows invokes: `mbvr_launcher.exe "mbvr://C:/path/to/file.pdf"`
+2. Launcher strips `mbvr://`, URL-decodes the path
+3. Runs: `Start-Process -FilePath "C:\path\to\file.pdf"`
+4. File opens in its default app (e.g. PDF reader, Word, etc.)
 
 ---
 
@@ -90,13 +83,13 @@ dist\mbvr_launcher.exe --install
 
 ### 2. Test from Run dialog
 - Press `Win+R`
-- Paste: `mbvr://https://workdrive.zoho.com/folder/YOUR_FOLDER_ID`
+- Paste: `mbvr://C:/Users/YourName/Desktop/test.pdf` (use a real file path)
 - Press Enter
 
 ### 3. Test from Zoho CRM
 In a custom button:
 ```javascript
-openUrl("mbvr://https://workdrive.zoho.com/folder/YOUR_FOLDER_ID");
+openUrl("mbvr://C:/path/to/your/file.pdf");
 ```
 
 ### 4. Check logs
@@ -104,20 +97,10 @@ If something fails, check: `%TEMP%\mbvr_launcher.log`
 
 ---
 
-## Success Criteria
-
-- [x] `mbvr://<workdrive-link>` triggers the EXE
-- [x] EXE launches Zoho WorkDrive True Sync desktop app
-- [x] WorkDrive opens the given folder/link
-- [x] Works from Zoho CRM `openUrl("mbvr://<workdrive-link>")`
-
----
-
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "ZohoWorkDriveTS.exe not found" | Install Zoho WorkDrive True Sync; check log for paths searched |
+| File doesn't open | Check path exists; ensure URL encoding for spaces (`%20`) |
 | Link does nothing | Re-run `mbvr_launcher.exe --install` |
-| Wrong app path | Edit registry: `HKEY_CURRENT_USER\Software\Classes\mbvr\shell\open\command` |
 | Log location | `%TEMP%\mbvr_launcher.log` (e.g. `C:\Users\<you>\AppData\Local\Temp\`) |
