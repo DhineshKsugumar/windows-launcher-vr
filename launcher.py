@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-mbvr:// Custom Protocol Launcher for Zoom
-Launches Zoom desktop app from mbvr:// links (e.g., from Zoho CRM custom buttons).
+mbvr:// Custom Protocol Launcher for Zoho WorkDrive True Sync
+Launches Zoho WorkDrive True Sync desktop app from mbvr:// links (e.g., from Zoho CRM custom buttons).
 Windows only.
 """
 
@@ -22,15 +22,17 @@ from urllib.parse import unquote
 # Protocol prefix to strip
 PROTOCOL_PREFIX = "mbvr://"
 
-# Zoom URL patterns
-ZOOM_HTTPS_PATTERN = re.compile(
-    r"^https?://(?:[a-z0-9-]+\.)?zoom\.us/(?:j|my|wc)/[^\s]+",
+# Zoho WorkDrive URL patterns
+# Examples: https://workdrive.zoho.com/home/teams/.../folders/...
+#           https://workdrive.zoho.com/folder/<folder_id>
+#           https://workdrive.zoho.com/teams/.../privatespace/folders/...
+WORKDRIVE_URL_PATTERN = re.compile(
+    r"^https?://(?:[a-z0-9-]+\.)?workdrive\.zoho\.com/[^\s]+",
     re.IGNORECASE
 )
-ZOOM_DEEP_LINK_PATTERN = re.compile(
-    r"^zoommtg://zoomus\?[^\s]+",
-    re.IGNORECASE
-)
+
+# Executable name for Zoho WorkDrive True Sync
+WORKDRIVE_EXE = "ZohoWorkDriveTS.exe"
 
 
 def get_log_path() -> Path:
@@ -49,13 +51,65 @@ def log(message: str) -> None:
         pass
 
 
-def find_zoom_exe() -> Optional[str]:
-    """Find Zoom.exe in common install locations."""
+def _find_via_registry() -> Optional[str]:
+    """Try to find Zoho WorkDrive True Sync via Windows Uninstall registry."""
+    base_paths = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ]
+    for base in base_paths:
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base, 0, winreg.KEY_READ)
+            i = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    subkey = winreg.OpenKey(key, subkey_name, 0, winreg.KEY_READ)
+                    try:
+                        display_name, _ = winreg.QueryValueEx(subkey, "DisplayName")
+                        if display_name and "Zoho WorkDrive TrueSync" in display_name:
+                            install_loc, _ = winreg.QueryValueEx(subkey, "InstallLocation")
+                            if install_loc:
+                                exe = Path(install_loc.rstrip("\\")) / WORKDRIVE_EXE
+                                if exe.exists():
+                                    return str(exe)
+                    except OSError:
+                        pass
+                    finally:
+                        winreg.CloseKey(subkey)
+                    i += 1
+                except OSError:
+                    break
+            winreg.CloseKey(key)
+        except OSError:
+            pass
+    return None
+
+
+def find_workdrive_exe() -> Optional[str]:
+    """Find ZohoWorkDriveTS.exe in common install locations."""
+    # Try registry first (most reliable if app is installed)
+    reg_path = _find_via_registry()
+    if reg_path:
+        return reg_path
+
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+    userprofile = os.environ.get("USERPROFILE", "")
+
     locations = [
-        Path(os.environ.get("APPDATA", "")) / "Zoom" / "bin" / "Zoom.exe",
-        Path(os.environ.get("USERPROFILE", "")) / "AppData" / "Roaming" / "Zoom" / "bin" / "Zoom.exe",
-        Path("C:\\Program Files (x86)") / "Zoom" / "bin" / "Zoom.exe",
-        Path("C:\\Program Files") / "Zoom" / "bin" / "Zoom.exe",
+        # Verified path: C:\Program Files\Zoho\ZohoWorkDriveTS\bin\ZohoWorkDriveTS.exe
+        Path("C:\\Program Files") / "Zoho" / "ZohoWorkDriveTS" / "bin" / WORKDRIVE_EXE,
+        Path("C:\\Program Files (x86)") / "Zoho" / "ZohoWorkDriveTS" / "bin" / WORKDRIVE_EXE,
+        # User AppData (fallbacks)
+        Path(local_appdata) / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
+        Path(local_appdata) / "Zoho" / "ZohoWorkDriveTS" / "bin" / WORKDRIVE_EXE,
+        Path(appdata) / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
+        Path(appdata) / "Zoho" / "ZohoWorkDriveTS" / "bin" / WORKDRIVE_EXE,
+        Path(userprofile) / "AppData" / "Local" / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
+        Path(userprofile) / "AppData" / "Roaming" / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
+        Path("C:\\Program Files") / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
+        Path("C:\\Program Files (x86)") / "Zoho WorkDrive TrueSync" / WORKDRIVE_EXE,
     ]
     for path in locations:
         if path.exists():
@@ -69,7 +123,7 @@ def parse_mbvr_uri(raw_arg: str) -> Optional[str]:
     - Strip surrounding quotes
     - Strip mbvr:// prefix
     - URL-decode the remaining string
-    Returns the meeting URL or None if invalid.
+    Returns the WorkDrive URL or None if invalid.
     """
     if not raw_arg:
         return None
@@ -94,12 +148,9 @@ def parse_mbvr_uri(raw_arg: str) -> Optional[str]:
     return s.strip() or None
 
 
-def is_valid_zoom_url(url: str) -> bool:
-    """Check if the URL is a valid Zoom meeting link."""
-    return bool(
-        ZOOM_HTTPS_PATTERN.match(url) or
-        ZOOM_DEEP_LINK_PATTERN.match(url)
-    )
+def is_valid_workdrive_url(url: str) -> bool:
+    """Check if the URL is a valid Zoho WorkDrive link."""
+    return bool(WORKDRIVE_URL_PATTERN.match(url))
 
 
 def install_protocol_handler() -> bool:
@@ -124,31 +175,30 @@ def install_protocol_handler() -> bool:
         return False
 
 
-def launch_zoom(meeting_url: str) -> bool:
-    """Launch Zoom desktop app with the meeting URL."""
-    zoom_path = find_zoom_exe()
-    if not zoom_path:
-        log("Zoom.exe not found in any known location")
+def launch_workdrive(workdrive_url: str) -> bool:
+    """Launch Zoho WorkDrive True Sync with the WorkDrive URL."""
+    exe_path = find_workdrive_exe()
+    if not exe_path:
+        log(f"{WORKDRIVE_EXE} not found in any known location")
         return False
 
     try:
-        subprocess.Popen([zoom_path, meeting_url])
-        log(f"Launched Zoom: {zoom_path} with URL: {meeting_url[:80]}...")
+        subprocess.Popen([exe_path, workdrive_url])
+        log(f"Launched WorkDrive: {exe_path} with URL: {workdrive_url[:80]}...")
         return True
     except OSError as e:
-        log(f"Failed to launch Zoom: {e}")
+        log(f"Failed to launch WorkDrive: {e}")
         return False
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="mbvr:// Zoom Launcher")
+    parser = argparse.ArgumentParser(description="mbvr:// Zoho WorkDrive Launcher")
     parser.add_argument("uri", nargs="?", help="mbvr:// URI (passed by Windows)")
     parser.add_argument("--install", action="store_true", help="Register protocol handler")
     args = parser.parse_args()
 
     if args.install:
         if install_protocol_handler():
-            # Show success (no console, so we could write to a temp file for GUI feedback)
             return 0
         return 1
 
@@ -156,18 +206,18 @@ def main() -> int:
         log("No URI provided")
         return 1
 
-    meeting_url = parse_mbvr_uri(args.uri)
-    if not meeting_url:
+    workdrive_url = parse_mbvr_uri(args.uri)
+    if not workdrive_url:
         log(f"Failed to parse URI: {args.uri[:100]}")
         return 1
 
-    log(f"Parsed target: {meeting_url}")
+    log(f"Parsed target: {workdrive_url}")
 
-    if not is_valid_zoom_url(meeting_url):
-        log(f"Invalid Zoom URL: {meeting_url[:100]}")
+    if not is_valid_workdrive_url(workdrive_url):
+        log(f"Invalid WorkDrive URL: {workdrive_url[:100]}")
         return 1
 
-    if launch_zoom(meeting_url):
+    if launch_workdrive(workdrive_url):
         return 0
     return 1
 
